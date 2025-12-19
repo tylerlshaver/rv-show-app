@@ -3,44 +3,46 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 
-# --- 1. LIST OF OUTFITTERS ---
-OUTFITTERS = ["Select...", "John Smith", "Sarah Jones", "Mike Miller", "Taylor Reed", "Chris Wilson"]
+# --- 1. OUTFITTERS LIST ---
+OUTFITTERS = ["Select...", "John Smith", "Sarah Jones", "Mike Miller", "Taylor Reed"]
 
-st.set_page_config(page_title="RV Show Digital Guide", page_icon="🚐", layout="wide")
+st.set_page_config(page_title="RV Show Guide", page_icon="🚐", layout="wide")
 
+# --- 2. DATA LOADING (SUPER ROBUST) ---
 @st.cache_data
 def load_data():
     try:
-        # We use latin1 encoding here as backup for CSVs exported from Excel
+        # We try to read the file and immediately clean the column names
         df = pd.read_csv('LANSING SHOW 26.csv', encoding='latin1')
-        df.columns = df.columns.str.strip()
+        # This removes hidden characters that cause 'KeyError'
+        df.columns = df.columns.str.strip().str.replace('"', '').str.replace("'", "")
         return df
     except Exception as e:
-        st.error(f"Error loading CSV: {e}")
+        st.error(f"Could not read the CSV file. Error: {e}")
         return None
 
 df = load_data()
 
-if 'lead_list' not in st.session_state:
-    st.session_state.lead_list = []
+# --- 3. SESSION STATE ---
+if 'leads' not in st.session_state:
+    st.session_state.leads = []
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
 
+# --- 4. APP LOGIC ---
 if not st.session_state.logged_in:
     st.title("🚐 Welcome to the RV Show!")
-    st.markdown("### Sign in to access inventory and floorplans.")
+    st.subheader("Sign in to view inventory")
     
-    with st.form("login_form"):
-        st.subheader("Customer Information")
-        name = st.text_input("Full Name")
+    # We use a unique key here to prevent the "Duplicate Form" error
+    with st.form(key="unique_login_form"):
+        name = st.text_input("Name")
         phone = st.text_input("Phone Number")
-        outfitter = st.selectbox("Who is your Outfitter today?", OUTFITTERS)
-        submit = st.form_submit_button("Access Digital Guide")
-        
-        if submit:
+        outfitter = st.selectbox("Outfitter", OUTFITTERS)
+        if st.form_submit_button("Enter"):
             if name and phone and outfitter != "Select...":
-                st.session_state.lead_list.append({
-                    "Date": datetime.now().strftime("%Y-%m-%d"),
+                st.session_state.leads.append({
+                    "Date": datetime.now().strftime("%m/%d %H:%M"),
                     "Name": name, "Phone": phone, "Outfitter": outfitter
                 })
                 st.session_state.user_name = name
@@ -48,132 +50,37 @@ if not st.session_state.logged_in:
                 st.session_state.logged_in = True
                 st.rerun()
             else:
-                st.warning("Please fill out all fields.")
+                st.error("All fields are required.")
 
 else:
-    if df is not None:
-        st.sidebar.title("Filters")
-        mfr_list = sorted(df['MANUFACTORER'].unique().tolist())
-        selected_mfr = st.sidebar.multiselect("Manufacturer", options=mfr_list)
-        
-        filtered_df = df.copy()
-        if selected_mfr:
-            filtered_df = filtered_df[filtered_df['MANUFACTORER'].isin(selected_mfr)]
-
-        st.title(f"📍 Welcome, {st.session_state.user_name}")
-        st.info(f"Your Outfitter: **{st.session_state.outfitter}**")
-        
-        for _, row in filtered_df.iterrows():
-            with st.container(border=True):
-                col1, col2, col3 = st.columns([2, 1, 1])
-                with col1:
-                    st.markdown(f"### {row['YEAR']} {row['MANUFACTORER']} {row['MAKE']}")
-                    st.caption(f"Model: {row['MODEL']}")
-                with col2:
-                    st.write(f"📏 {row['LENGTH(FT)']} ft | ⚖️ {row['WEIGHT(LBS)']} lbs")
-                with col3:
-                    st.subheader(f"{row['SALE PRICE']}")
-                    st.link_button("View Floorplan 🔗", row['FLOORPLAN URL'])
-
-    st.divider()
-    with st.expander("Admin & Lead Export"):
-        if st.session_state.lead_list:
-            leads_df = pd.DataFrame(st.session_state.lead_list)
-            st.dataframe(leads_df)
-            csv_data = leads_df.to_csv(index=False).encode('utf-8')
-            st.download_button("Download Leads CSV", csv_data, "leads.csv", "text/csv")
-        else:
-            st.write("No leads recorded yet.")
-
-    if st.button("Sign Out"):
-        st.session_state.logged_in = False
-        st.rerun()# -*- coding: utf-8 -*-
-import streamlit as st
-import pandas as pd
-from datetime import datetime
-
-# --- 1. LIST OF OUTFITTERS ---
-OUTFITTERS = ["Select...", "John Smith", "Sarah Jones", "Mike Miller", "Taylor Reed", "Chris Wilson"]
-
-st.set_page_config(page_title="RV Show Digital Guide", page_icon="🚐", layout="wide")
-
-@st.cache_data
-def load_data():
-    try:
-        # We use latin1 encoding here as backup for CSVs exported from Excel
-        df = pd.read_csv('LANSING SHOW 26.csv', encoding='latin1')
-        df.columns = df.columns.str.strip()
-        return df
-    except Exception as e:
-        st.error(f"Error loading CSV: {e}")
-        return None
-
-df = load_data()
-
-if 'lead_list' not in st.session_state:
-    st.session_state.lead_list = []
-if 'logged_in' not in st.session_state:
-    st.session_state.logged_in = False
-
-if not st.session_state.logged_in:
-    st.title("🚐 Welcome to the RV Show!")
-    st.markdown("### Sign in to access inventory and floorplans.")
+    st.title(f"📍 Welcome, {st.session_state.user_name}")
+    st.sidebar.header("Filter")
     
-    with st.form("login_form"):
-        st.subheader("Customer Information")
-        name = st.text_input("Full Name")
-        phone = st.text_input("Phone Number")
-        outfitter = st.selectbox("Who is your Outfitter today?", OUTFITTERS)
-        submit = st.form_submit_button("Access Digital Guide")
-        
-        if submit:
-            if name and phone and outfitter != "Select...":
-                st.session_state.lead_list.append({
-                    "Date": datetime.now().strftime("%Y-%m-%d"),
-                    "Name": name, "Phone": phone, "Outfitter": outfitter
-                })
-                st.session_state.user_name = name
-                st.session_state.outfitter = outfitter
-                st.session_state.logged_in = True
-                st.rerun()
-            else:
-                st.warning("Please fill out all fields.")
-
-else:
     if df is not None:
-        st.sidebar.title("Filters")
-        mfr_list = sorted(df['MANUFACTORER'].unique().tolist())
-        selected_mfr = st.sidebar.multiselect("Manufacturer", options=mfr_list)
-        
-        filtered_df = df.copy()
-        if selected_mfr:
-            filtered_df = filtered_df[filtered_df['MANUFACTORER'].isin(selected_mfr)]
-
-        st.title(f"📍 Welcome, {st.session_state.user_name}")
-        st.info(f"Your Outfitter: **{st.session_state.outfitter}**")
-        
-        for _, row in filtered_df.iterrows():
-            with st.container(border=True):
-                col1, col2, col3 = st.columns([2, 1, 1])
-                with col1:
-                    st.markdown(f"### {row['YEAR']} {row['MANUFACTORER']} {row['MAKE']}")
-                    st.caption(f"Model: {row['MODEL']}")
-                with col2:
-                    st.write(f"📏 {row['LENGTH(FT)']} ft | ⚖️ {row['WEIGHT(LBS)']} lbs")
-                with col3:
-                    st.subheader(f"{row['SALE PRICE']}")
-                    st.link_button("View Floorplan 🔗", row['FLOORPLAN URL'])
-
-    st.divider()
-    with st.expander("Admin & Lead Export"):
-        if st.session_state.lead_list:
-            leads_df = pd.DataFrame(st.session_state.lead_list)
-            st.dataframe(leads_df)
-            csv_data = leads_df.to_csv(index=False).encode('utf-8')
-            st.download_button("Download Leads CSV", csv_data, "leads.csv", "text/csv")
+        # Check if YEAR exists, if not, show available columns to help us fix it
+        if 'YEAR' not in df.columns:
+            st.error(f"Could not find 'YEAR' column. Available columns are: {list(df.columns)}")
         else:
-            st.write("No leads recorded yet.")
+            mfrs = st.sidebar.multiselect("Brand", options=sorted(df['MANUFACTORER'].unique()))
+            filtered = df[df['MANUFACTORER'].isin(mfrs)] if mfrs else df
 
-    if st.button("Sign Out"):
-        st.session_state.logged_in = False
-        st.rerun()
+            for _, row in filtered.iterrows():
+                with st.container(border=True):
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        st.markdown(f"### {row['YEAR']} {row['MANUFACTORER']} {row['MAKE']}")
+                        st.write(f"**Model:** {row['MODEL']} | **Status:** {row['STOCK STATUS']}")
+                    with col2:
+                        st.write(f"Price: **{row['SALE PRICE']}**")
+                        st.link_button("Floorplan", row['FLOORPLAN URL'])
+
+    # --- ADMIN EXPORT ---
+    st.divider()
+    with st.expander("Admin: Export Leads"):
+        if st.session_state.leads:
+            ld_df = pd.DataFrame(st.session_state.leads)
+            st.dataframe(ld_df)
+            st.download_button("Download CSV", ld_df.to_csv(index=False).encode('utf-8'), "leads.csv")
+        if st.button("Logout"):
+            st.session_state.logged_in = False
+            st.rerun()
