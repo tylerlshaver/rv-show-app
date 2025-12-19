@@ -8,14 +8,14 @@ OUTFITTERS = ["Select...", "John Smith", "Sarah Jones", "Mike Miller", "Taylor R
 
 st.set_page_config(page_title="RV Show Guide", page_icon="🚐", layout="wide")
 
-# --- 2. DATA LOADING (SUPER ROBUST) ---
+# --- 2. DATA LOADING (UPDATED FOR UTF-8-SIG) ---
 @st.cache_data
 def load_data():
     try:
-        # We try to read the file and immediately clean the column names
-        df = pd.read_csv('LANSING SHOW 26.csv', encoding='latin1')
-        # This removes hidden characters that cause 'KeyError'
-        df.columns = df.columns.str.strip().str.replace('"', '').str.replace("'", "")
+        # 'utf-8-sig' specifically ignores the ï»¿ characters
+        df = pd.read_csv('LANSING SHOW 26.csv', encoding='utf-8-sig')
+        # Standard cleaning
+        df.columns = df.columns.str.strip()
         return df
     except Exception as e:
         st.error(f"Could not read the CSV file. Error: {e}")
@@ -34,7 +34,6 @@ if not st.session_state.logged_in:
     st.title("🚐 Welcome to the RV Show!")
     st.subheader("Sign in to view inventory")
     
-    # We use a unique key here to prevent the "Duplicate Form" error
     with st.form(key="unique_login_form"):
         name = st.text_input("Name")
         phone = st.text_input("Phone Number")
@@ -57,9 +56,9 @@ else:
     st.sidebar.header("Filter")
     
     if df is not None:
-        # Check if YEAR exists, if not, show available columns to help us fix it
+        # Check if YEAR exists now that we used utf-8-sig
         if 'YEAR' not in df.columns:
-            st.error(f"Could not find 'YEAR' column. Available columns are: {list(df.columns)}")
+            st.error(f"Still can't find 'YEAR'. I see: {list(df.columns)}")
         else:
             mfrs = st.sidebar.multiselect("Brand", options=sorted(df['MANUFACTORER'].unique()))
             filtered = df[df['MANUFACTORER'].isin(mfrs)] if mfrs else df
@@ -72,7 +71,7 @@ else:
                         st.write(f"**Model:** {row['MODEL']} | **Status:** {row['STOCK STATUS']}")
                     with col2:
                         st.write(f"Price: **{row['SALE PRICE']}**")
-                        st.link_button("Floorplan", row['FLOORPLAN URL'])
+                        st.link_button("Floorplan", str(row['FLOORPLAN URL']))
 
     # --- ADMIN EXPORT ---
     st.divider()
